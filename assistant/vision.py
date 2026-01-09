@@ -1,11 +1,12 @@
 """
-Vision module - Face detection and presence tracking.
-Uses MediaPipe for fast, accurate face detection.
+Vision module - Face detection - OPTIMIZED FOR SPEED
 """
 from __future__ import annotations
 import threading
 import time
+import base64
 from dataclasses import dataclass
+from typing import Callable
 import cv2
 import mediapipe as mp
 import config
@@ -13,100 +14,86 @@ import config
 
 @dataclass
 class FaceEvent:
-    """Event emitted when face presence changes."""
     present: bool
     timestamp: float
+    frame_b64: str | None = None  # Base64 encoded frame for web UI
 
 
 class FacePresence:
-    """
-    Tracks face presence using webcam.
-    Emits events when face appears/disappears.
-    """
+    """Face detection - OPTIMIZED for speed and web streaming."""
     
-    def __init__(self, on_change=None):
+    def __init__(self, on_change: Callable[[FaceEvent], None] | None = None, 
+                 on_frame: Callable[[str], None] | None = None):
         self.on_change = on_change
+        self.on_frame = on_frame  # Callback for each frame (base64)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._present = False
         self._present_streak = 0
         self._absent_streak = 0
         self._last_event_time = 0.0
+        self._cap = None
+        self._frame_count = 0
 
     def start(self):
-        """Start face detection thread."""
+        self._stop.clear()
         self._thread.start()
 
     def stop(self):
-        """Stop face detection thread."""
         self._stop.set()
         self._thread.join(timeout=2)
+        if self._cap:
+            self._cap.release()
 
     def is_present(self) -> bool:
-        """Check if face is currently present."""
         return self._present
 
-    def _emit(self, present: bool):
-        """Emit face change event."""
+    def _emit(self, present: bool, frame_b64: str | None = None):
         now = time.time()
         self._last_event_time = now
         
         if self.on_change:
             try:
-                self.on_change(FaceEvent(present=present, timestamp=now))
+                self.on_change(FaceEvent(present=present, timestamp=now, frame_b64=frame_b64))
             except Exception as e:
                 print(f"[VISION] on_change error: {e}")
 
     def _run(self):
-        """Main vision thread loop."""
-        cap = cv2.VideoCapture(config.CAMERA_INDEX)
-        if not cap.isOpened():
-            print("[VISION] Could not open camera.")
-            print("[VISION] Try changing CAMERA_INDEX in config.py")
+        self._cap = cv2.VideoCapture(config.CAMERA_INDEX)
+        if not self._cap.isOpened():
+            print("[VISION] Could not open camera!")
             return
 
-        # Set camera properties for better performance
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        cap.set(cv2.CAP_PROP_FPS, 30)
+        # Optimize camera settings
+        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
+        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+        self._cap.set(cv2.CAP_PROP_FPS, 15)
+        self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
-        print(f"[VISION] Camera opened: {int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x{int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
+        print(f"[VISION] Camera ready")
 
         mp_face = mp.solutions.face_detection
         face_detector = mp_face.FaceDetection(
-            model_selection=0,  # 0 = short-range (< 2m), 1 = full-range
+            model_selection=0,
             min_detection_confidence=float(config.FACE_MIN_CONFIDENCE)
         )
 
-        frame_i = 0
-        fps_start = time.time()
-        fps_count = 0
-        current_fps = 0.0
-
         try:
             while not self._stop.is_set():
-                ok, frame = cap.read()
+                ok, frame = self._cap.read()
                 if not ok:
-                    time.sleep(0.05)
+                    time.sleep(0.02)
                     continue
 
-                frame_i += 1
-                fps_count += 1
+                self._frame_count += 1
                 
-                # Calculate FPS every second
-                if time.time() - fps_start >= 1.0:
-                    current_fps = fps_count
-                    fps_count = 0
-                    fps_start = time.time()
+                # Process every N frames
+                do_process = (self._frame_count % config.VISION_PROCESS_EVERY_N_FRAMES == 0)
 
-                # Process every N frames for performance
-                do_process = (frame_i % max(1, int(config.VISION_PROCESS_EVERY_N_FRAMES)) == 0)
-
-                face_seen = False
                 detections = None
-                
                 if do_process:
-                    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    small = cv2.resize(frame, (240, 180))
+                    rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
                     result = face_detector.process(rgb)
                     detections = result.detections if result else None
                     face_seen = bool(detections)
@@ -127,11 +114,10 @@ class FacePresence:
                         self._present = False
                         self._emit(False)
 
-                # Draw preview window
-                if config.VISION_SHOW_WINDOW:
+                # Send frame to web UI (every 3rd frame for bandwidth)
+                if self.on_frame and self._frame_count % 3 == 0:
+                    # Draw face box
                     disp = frame.copy()
-                    
-                    # Draw face boxes
                     if detections:
                         h, w = disp.shape[:2]
                         for d in detections:
@@ -140,59 +126,22 @@ class FacePresence:
                             y1 = int(box.ymin * h)
                             x2 = int((box.xmin + box.width) * w)
                             y2 = int((box.ymin + box.height) * h)
-                            
                             color = (0, 255, 0) if self._present else (0, 165, 255)
                             cv2.rectangle(disp, (x1, y1), (x2, y2), color, 2)
-                            
-                            # Confidence score
-                            conf = d.score[0] if d.score else 0
-                            cv2.putText(disp, f"{conf:.0%}", (x1, y1-10), 
-                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
 
-                    # Status overlay
+                    # Status text
                     status = "FACE: YES" if self._present else "FACE: NO"
                     color = (0, 255, 0) if self._present else (0, 0, 255)
-                    cv2.putText(disp, status, (10, 30), 
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-                    
-                    # FPS counter
-                    cv2.putText(disp, f"FPS: {current_fps:.0f}", (10, 60),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                    cv2.putText(disp, status, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
 
-                    cv2.imshow("Local Face + Voice AI", disp)
+                    # Encode to base64
+                    _, buffer = cv2.imencode('.jpg', disp, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                    frame_b64 = base64.b64encode(buffer).decode('utf-8')
                     
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord('q'):
-                        break
+                    try:
+                        self.on_frame(frame_b64)
+                    except Exception:
+                        pass
 
         finally:
-            cap.release()
-            try:
-                cv2.destroyAllWindows()
-            except Exception:
-                pass
-
-
-def list_cameras():
-    """Utility to list available cameras."""
-    print("\nSearching for cameras...")
-    available = []
-    
-    for i in range(10):
-        cap = cv2.VideoCapture(i)
-        if cap.isOpened():
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            available.append((i, w, h))
-            print(f"  Camera {i}: {w}x{h}")
-            cap.release()
-    
-    if not available:
-        print("  No cameras found!")
-    
-    return available
-
-
-if __name__ == "__main__":
-    # Run this file directly to test camera
-    list_cameras()
+            self._cap.release()

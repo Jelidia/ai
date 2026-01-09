@@ -4,25 +4,50 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot\.."
 Set-Location $root
 
-Write-Host "== Local Face + Voice AI setup =="
+Write-Host ""
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "  Local Voice AI - Setup" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host ""
 
-# venv
-if (-not (Test-Path ".\.venv\Scripts\python.exe")) {
-  Write-Host "[1/3] Creating venv..."
-  python -m venv .venv
-} else {
-  Write-Host "[1/3] venv exists."
+# Check Python
+Write-Host "[1/4] Checking Python..." -ForegroundColor Yellow
+$pythonVersion = python --version 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] Python not found!" -ForegroundColor Red
+    exit 1
 }
+Write-Host "       Found: $pythonVersion" -ForegroundColor Green
 
-Write-Host "[2/3] Installing requirements..."
-& .\.venv\Scripts\python.exe -m pip install --upgrade pip
-& .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+# Create venv
+Write-Host ""
+Write-Host "[2/4] Setting up virtual environment..." -ForegroundColor Yellow
+if (-not (Test-Path ".\.venv\Scripts\python.exe")) {
+    python -m venv .venv
+}
+Write-Host "       Done" -ForegroundColor Green
 
-Write-Host "[3/3] Downloading offline speech models (Vosk EN+FR)..."
+# Install dependencies
+Write-Host ""
+Write-Host "[3/4] Installing dependencies..." -ForegroundColor Yellow
+& .\.venv\Scripts\python.exe -m pip install --upgrade pip --quiet
+& .\.venv\Scripts\python.exe -m pip install -r requirements.txt --quiet
+
+# Download Vosk models
+Write-Host ""
+Write-Host "[4/4] Downloading speech models..." -ForegroundColor Yellow
 & .\scripts\download_models.ps1
 
-Write-Host "`nSetup done."
-Write-Host "Next:"
-Write-Host "  1) Install Ollama (https://ollama.com/download/windows)"
-Write-Host "  2) Pull a model:  ollama pull llama3.1:8b"
-Write-Host "  3) Run:          .\scripts\run.bat"
+# Create static folder
+New-Item -ItemType Directory -Force -Path ".\static" | Out-Null
+
+Write-Host ""
+Write-Host "============================================" -ForegroundColor Green
+Write-Host "  Setup Complete!" -ForegroundColor Green
+Write-Host "============================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Cyan
+Write-Host "  1. Pull AI model: ollama pull qwen2.5:3b" -ForegroundColor White
+Write-Host "  2. Run: .\scripts\run_web.bat" -ForegroundColor White
+Write-Host "  3. Open: http://127.0.0.1:8765" -ForegroundColor White
+Write-Host ""
