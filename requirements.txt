@@ -1,0 +1,8 @@
+opencv-python
+mediapipe
+pyttsx3
+vosk
+sounddevice
+webrtcvad
+numpy
+requests
