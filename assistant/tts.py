@@ -1,10 +1,10 @@
 """
-Text-to-Speech - Windows pyttsx3 - FIXED THREADING
+Text-to-Speech - Windows pyttsx3 - ROBUST VERSION
+Creates fresh engine for each message to avoid Windows COM issues
 """
 from __future__ import annotations
 import threading
 import queue
-import time
 
 import pyttsx3
 
@@ -12,84 +12,99 @@ _SHUTDOWN = "__SHUTDOWN__"
 
 
 class Speaker:
-    """Thread-safe TTS speaker."""
+    """Thread-safe TTS speaker - recreates engine per message for reliability."""
     
     def __init__(self):
         self._queue: queue.Queue = queue.Queue()
         self._stop_flag = threading.Event()
-        self._engine_ready = threading.Event()
+        self._ready = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
-        # Wait for engine init
-        self._engine_ready.wait(timeout=5)
+        self._ready.wait(timeout=3)
+    
+    def _create_engine(self):
+        """Create and configure a fresh TTS engine."""
+        engine = pyttsx3.init()
+        voices = engine.getProperty('voices')
+        
+        # Try to find a good voice
+        for v in voices:
+            name = v.name.lower()
+            if 'zira' in name or 'david' in name:
+                engine.setProperty('voice', v.id)
+                break
+        
+        engine.setProperty('rate', 175)
+        engine.setProperty('volume', 1.0)
+        return engine, voices
     
     def _run(self):
-        """TTS thread - creates and owns the engine."""
+        """TTS thread - creates fresh engine for each message."""
+        # Initial test
         try:
-            engine = pyttsx3.init()
-            
-            # Configure
-            voices = engine.getProperty('voices')
+            engine, voices = self._create_engine()
             print(f"[TTS] Initialized with {len(voices)} voices")
+            engine.stop()
+            del engine
+        except Exception as e:
+            print(f"[TTS] Init error: {e}")
+        
+        self._ready.set()
+        
+        while True:
+            try:
+                item = self._queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
             
-            # Try to set a good voice
-            for v in voices:
-                if 'zira' in v.name.lower() or 'david' in v.name.lower():
-                    engine.setProperty('voice', v.id)
-                    break
+            if item == _SHUTDOWN:
+                break
             
-            engine.setProperty('rate', 175)
-            engine.setProperty('volume', 1.0)
+            if self._stop_flag.is_set():
+                self._stop_flag.clear()
+                continue
             
-            self._engine_ready.set()
+            text, lang = item
             
-            while True:
-                try:
-                    item = self._queue.get(timeout=0.5)
-                except queue.Empty:
-                    continue
-                
-                if item == _SHUTDOWN:
-                    break
-                
-                if self._stop_flag.is_set():
-                    self._stop_flag.clear()
-                    continue
-                
-                text, lang = item
+            # Create fresh engine for this message
+            try:
+                engine = pyttsx3.init()
+                voices = engine.getProperty('voices')
                 
                 # Try to switch voice based on language
                 for v in voices:
-                    v_name = v.name.lower()
-                    if lang == "fr" and ("french" in v_name or "paul" in v_name):
+                    name = v.name.lower()
+                    if lang == "fr" and ("french" in name or "paul" in name or "hortense" in name):
                         engine.setProperty('voice', v.id)
                         break
-                    elif lang == "en" and ("english" in v_name or "zira" in v_name or "david" in v_name):
+                    elif lang == "en" and ("zira" in name or "david" in name or "english" in name):
                         engine.setProperty('voice', v.id)
                         break
+                
+                engine.setProperty('rate', 175)
+                engine.setProperty('volume', 1.0)
                 
                 preview = text[:50] + "..." if len(text) > 50 else text
                 print(f"[TTS] Speaking: {preview}")
                 
-                try:
-                    engine.say(text)
-                    engine.runAndWait()
-                except Exception as e:
-                    print(f"[TTS] Error speaking: {e}")
-                    # Reinit engine on error
-                    try:
-                        engine = pyttsx3.init()
-                        engine.setProperty('rate', 175)
-                        engine.setProperty('volume', 1.0)
-                    except:
-                        pass
+                # Speak
+                engine.say(text)
+                engine.runAndWait()
+                
+                # Cleanup
+                engine.stop()
+                del engine
                 
                 print("[TTS] Done speaking")
                 
-        except Exception as e:
-            print(f"[TTS] Init error: {e}")
-        finally:
-            self._engine_ready.set()
+            except Exception as e:
+                print(f"[TTS] Error: {e}")
+                # Try to cleanup
+                try:
+                    engine.stop()
+                    del engine
+                except:
+                    pass
     
     def say(self, text: str, lang: str = "en"):
         """Queue text to speak."""
