@@ -1,8 +1,19 @@
-opencv-python
-mediapipe
-pyttsx3
-vosk
-sounddevice
-webrtcvad
-numpy
-requests
+# Local Face + Voice AI - Dependencies
+
+# Vision
+opencv-python>=4.8.0
+mediapipe>=0.10.0
+
+# Audio / Speech Recognition
+vosk>=0.3.45
+sounddevice>=0.4.6
+webrtcvad>=2.0.10
+
+# Text-to-Speech
+pyttsx3>=2.90
+
+# LLM Client
+requests>=2.31.0
+
+# Utilities
+numpy>=1.24.0

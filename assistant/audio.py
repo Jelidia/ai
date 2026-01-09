@@ -1,3 +1,6 @@
+"""
+Audio module - VAD + Bilingual ASR (English + French)
+"""
 from __future__ import annotations
 import json
 import queue
@@ -19,13 +22,16 @@ class Heard:
 
 
 def _clean(s: str) -> str:
+    """Normalize text for command matching."""
     s = (s or "").lower().strip()
-    s = re.sub(r"[^\w\sàâäçéèêëîïôöùûüÿ'’-]", " ", s, flags=re.IGNORECASE)
+    s = re.sub(r"[^\w\sàâäçéèêëîïôöùûüÿ''-]", " ", s, flags=re.IGNORECASE)
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
 
 class BilingualASR:
+    """Bilingual Automatic Speech Recognition using Vosk."""
+    
     def __init__(self):
         self.vad = webrtcvad.Vad(int(config.VAD_AGGRESSIVENESS))
         self.frame_ms = 20
@@ -39,20 +45,23 @@ class BilingualASR:
         self._load_models()
 
     def _load_models(self):
+        """Load Vosk speech recognition models."""
         try:
             self._model_en = Model(config.VOSK_MODEL_EN_PATH)
+            print(f"[ASR] Loaded EN model: {config.VOSK_MODEL_EN_PATH}")
         except Exception as e:
-            print(f"[ASR] Could not load EN model at {config.VOSK_MODEL_EN_PATH}: {e}")
+            print(f"[ASR] Could not load EN model: {e}")
             self._model_en = None
 
         try:
             self._model_fr = Model(config.VOSK_MODEL_FR_PATH)
+            print(f"[ASR] Loaded FR model: {config.VOSK_MODEL_FR_PATH}")
         except Exception as e:
-            print(f"[ASR] Could not load FR model at {config.VOSK_MODEL_FR_PATH}: {e}")
+            print(f"[ASR] Could not load FR model: {e}")
             self._model_fr = None
 
         if not self._model_en and not self._model_fr:
-            print("[ASR] No models loaded. Run scripts/setup_windows.ps1 to download them.")
+            print("[ASR] No models loaded! Run: scripts/setup_windows.ps1")
 
     def _make_recognizer(self, model: Model):
         rec = KaldiRecognizer(model, config.SAMPLE_RATE)
@@ -60,6 +69,7 @@ class BilingualASR:
         return rec
 
     def _asr_one(self, pcm: bytes, lang: str) -> Heard | None:
+        """Run ASR on audio for one language."""
         model = self._model_en if lang == "en" else self._model_fr
         if not model:
             return None
@@ -88,15 +98,15 @@ class BilingualASR:
         return Heard(text=text, lang=lang, confidence=conf)
 
     def _audio_callback(self, indata, frames, time_info, status):
-        # indata is int16 mono
+        """Callback for audio stream."""
         b = indata.tobytes()
         try:
             self._audio_q.put_nowait(b)
         except queue.Full:
-            # drop frames if overwhelmed
-            pass
+            pass  # drop frames if overwhelmed
 
     def _open_stream(self):
+        """Open audio input stream."""
         return sd.InputStream(
             samplerate=config.SAMPLE_RATE,
             channels=1,
@@ -108,11 +118,8 @@ class BilingualASR:
 
     def listen_utterance(self) -> tuple[bytes, float] | None:
         """
-        Returns (pcm_bytes, duration_sec) for one utterance, using VAD.
-        - waits until speech triggers
-        - keeps some pre-roll
-        - ends on trailing silence OR max duration
-        - ignores tiny gaps (<= 200ms) inside a phrase so it doesn't cut you mid-sentence
+        Capture one utterance using VAD.
+        Returns (pcm_bytes, duration_sec) or None.
         """
         triggered = False
         voiced_frames: list[bytes] = []
@@ -120,15 +127,12 @@ class BilingualASR:
 
         # Pre-roll: keep last 800ms audio before trigger
         ring_max = int(800 / self.frame_ms)
-        # Trigger threshold: require ~20% of ring frames as voiced (more permissive)
         voiced_needed = max(3, int(0.2 * ring_max))
 
         silence_ms = 0
         utter_start: float | None = None
-
-        # NEW: tolerate micro gaps
         non_speech_streak = 0
-        MICRO_GAP_MS = 200  # allow up to 200ms "not speech" inside a phrase
+        MICRO_GAP_MS = config.MICRO_GAP_MS
 
         while True:
             frame = self._audio_q.get()
@@ -158,7 +162,7 @@ class BilingualASR:
             else:
                 voiced_frames.append(frame)
 
-                # Hard cap after trigger
+                # Hard cap
                 if utter_start and (time.time() - utter_start) >= float(config.VAD_MAX_UTTERANCE_SEC):
                     break
 
@@ -168,7 +172,7 @@ class BilingualASR:
                 else:
                     non_speech_streak += 1
 
-                    # Ignore tiny gaps so it doesn't cut the sentence
+                    # Ignore micro gaps (don't cut mid-sentence)
                     if (non_speech_streak * self.frame_ms) <= MICRO_GAP_MS:
                         continue
 
@@ -179,23 +183,35 @@ class BilingualASR:
         if not voiced_frames:
             return None
 
+        # Check minimum duration
         dur = len(voiced_frames) * self.frame_ms / 1000.0
+        if dur < config.MIN_UTTERANCE_SEC:
+            return None
+            
         return b"".join(voiced_frames), float(dur)
 
     def transcribe(self, pcm: bytes) -> Heard | None:
         """
-        Fast(er) mode:
-        - try FR first (since you're in Montreal you likely speak FR a lot)
-        - fallback EN
-        This avoids doing EN+FR every time which can add latency.
+        Transcribe audio, trying both languages.
+        Tries FR first (Montreal bias), falls back to EN.
         """
+        # Try French first
         fr = self._asr_one(pcm, "fr")
-        if fr:
+        if fr and fr.confidence > 0.5:
             return fr
+        
+        # Try English
         en = self._asr_one(pcm, "en")
-        return en
+        if en and en.confidence > 0.5:
+            return en
+        
+        # Return whichever had higher confidence
+        if fr and en:
+            return fr if fr.confidence >= en.confidence else en
+        return fr or en
 
     def passes_wake_word(self, heard: Heard) -> bool:
+        """Check if wake word is present (if enabled)."""
         if not config.WAKE_WORDS_ENABLED:
             return True
         t = _clean(heard.text)
@@ -204,6 +220,7 @@ class BilingualASR:
         return any(w in t for w in wake)
 
     def strip_wake_word(self, heard: Heard) -> Heard:
+        """Remove wake word from transcription."""
         if not config.WAKE_WORDS_ENABLED:
             return heard
         t = _clean(heard.text)
@@ -215,10 +232,10 @@ class BilingualASR:
 
     def run(self, on_heard):
         """
-        Blocking loop:
-        - capture utterances
-        - ASR
-        - call on_heard(Heard)
+        Main blocking loop:
+        - Capture utterances
+        - Run ASR
+        - Call on_heard(Heard) for each recognized phrase
         """
         with self._open_stream():
             while True:
@@ -226,7 +243,7 @@ class BilingualASR:
                 if not seg:
                     continue
 
-                pcm, _dur = seg
+                pcm, dur = seg
 
                 heard = self.transcribe(pcm)
                 if not heard:
@@ -242,44 +259,39 @@ class BilingualASR:
                 on_heard(heard)
 
 
+# --- Voice command helpers ---
+
 def is_stop_command(text: str) -> bool:
+    """Check if text is a stop command."""
     t = _clean(text)
-    return (
-        t in {"stop", "arrête", "arrete", "ta gueule", "silence"}
-        or t.startswith("stop ")
-        or t.startswith("arrête ")
-        or t.startswith("arrete ")
-    )
+    stop_words = {"stop", "arrête", "arrete", "ta gueule", "silence", "shut up", "tais-toi", "tais toi"}
+    return t in stop_words or any(t.startswith(w + " ") for w in ["stop", "arrête", "arrete"])
 
 
 def is_quit_command(text: str) -> bool:
+    """Check if text is a quit command."""
     t = _clean(text)
-    return (
-        t in {"quit", "exit", "quitte", "bye app", "au revoir app"}
-        or t.startswith("quit ")
-        or t.startswith("exit ")
-        or t.startswith("quitte ")
-    )
+    quit_words = {"quit", "exit", "quitte", "bye app", "au revoir app", "ferme", "close", "goodbye app"}
+    return t in quit_words or any(t.startswith(w + " ") for w in ["quit", "exit", "quitte"])
 
 
 def parse_set_command(text: str) -> tuple[str, float] | None:
     """
-    Voice command to tweak config live (basic):
+    Parse voice command to tweak config:
       - "set niceness 0.8"
       - "set banter 0.2"
       - "mets gentillesse 0.9"
-      - "mets politesse 0.7"
-      - "set intelligence 1"
       - "set speed 200"
-    Returns (key, value) or None
+    Returns (key, value) or None.
     """
     t = _clean(text)
-    # English
+    
+    # English patterns
     m = re.match(r"set\s+(niceness|formality|banter|intelligence|speed|temperature)\s+([0-9]*\.?[0-9]+)", t)
     if m:
         return m.group(1), float(m.group(2))
 
-    # French
+    # French patterns
     m = re.match(r"(mets|met)\s+(gentillesse|politesse|taquinerie|intelligence|vitesse|temperature)\s+([0-9]*\.?[0-9]+)", t)
     if m:
         fr_key = m.group(2)

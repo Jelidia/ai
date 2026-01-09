@@ -1,105 +1,188 @@
-# Local Face + Voice AI (Windows 11, no API keys)
+# Local Face + Voice AI
 
-This project runs **fully on your PC**:
-- Webcam: detects *any human face* and greets / says goodbye
-- Offline speech recognition: **English + French** (Vosk)
-- Offline TTS: talks back using Windows voices (pyttsx3 / SAPI)
-- “Brain” runs locally via **Ollama** (no API keys). The app talks to your local model at `http://localhost:11434`.
+A **fully offline** voice assistant for Windows with face detection. No API keys, no cloud, everything runs on your PC.
 
-> You still need to **download** local models (speech models + LLM weights). They’re too big to bundle in a zip.
+## Features
+
+- 🎤 **Voice Recognition** - Bilingual (English + French) using Vosk
+- 🗣️ **Text-to-Speech** - Natural voices using Windows SAPI
+- 👤 **Face Detection** - Greets you when you appear, notices when you leave
+- 🧠 **Local AI Brain** - Uses Ollama (qwen2.5:3b recommended for speed)
+- ⚡ **Optimized for Speed** - Tuned for fast responses on CPU
 
 ---
 
-## 1) Install prerequisites
+## Quick Start
 
-### A) Install Python
-Install **Python 3.10+** (3.11 recommended). Make sure **“Add Python to PATH”** is checked.
+### 1. Prerequisites
 
-### B) Install Ollama (local LLM engine)
-Download and install Ollama for Windows:
-- https://ollama.com/download/windows
+- **Windows 10/11**
+- **Python 3.10+** - [Download](https://www.python.org/downloads/) (check "Add to PATH")
+- **Ollama** - [Download](https://ollama.com/download/windows)
+- **Webcam + Microphone**
 
-After install, open PowerShell and run one of these (pick based on your GPU/RAM):
+### 2. Install Ollama Model
+
+Open PowerShell and run:
+
 ```powershell
-ollama pull llama3.1:8b
-# or (often faster/smaller)
-ollama pull qwen2.5:7b
-# or (very small, less smart)
+# Fast model for CPU (recommended)
+ollama pull qwen2.5:3b
+
+# Or even smaller/faster
 ollama pull phi3:mini
 ```
 
----
-
-## 2) Setup the project (one-time)
-
-Open PowerShell **inside this folder** and run:
+### 3. Setup Project
 
 ```powershell
+# Navigate to project folder
+cd path\to\local-voice-ai
+
+# Allow script execution (one-time)
 Set-ExecutionPolicy -Scope Process Bypass
-./scripts/setup_windows.ps1
+
+# Run setup
+.\scripts\setup_windows.ps1
 ```
 
-What it does:
-- creates a venv
-- installs Python deps
-- downloads offline speech models (EN + FR) from https://alphacephei.com/vosk/models
-- prints “next steps”
-
----
-
-## 3) Run
+### 4. Run
 
 ```powershell
-./scripts/run.bat
-```
+# Start Ollama (if not running)
+ollama serve
 
-Voice controls (built-in):
-- Say **"stop" / "arrête"** to interrupt speech
-- Say **"quit" / "quitte"** to exit
+# In another terminal, run the app
+.\scripts\run.bat
+```
 
 ---
 
-## 4) Tune the personality (the fun part)
+## Voice Commands
 
-Open `config.py` and tweak these:
+| Command | Action |
+|---------|--------|
+| `stop` / `arrête` | Stop speaking |
+| `quit` / `quitte` | Exit app |
+| `clear` / `efface` | Clear conversation history |
+| `set speed 200` | Change speech rate (80-300) |
+| `set banter 0.8` | Increase playfulness (0-1) |
+| `set niceness 0.3` | Make it more blunt (0-1) |
 
-- `NICENESS` (0.0 = mean, 1.0 = super nice)
-- `FORMALITY` (0.0 = casual, 1.0 = formal)
-- `BANTER` (0.0 = no teasing, 1.0 = playful rhetorical “attack”)
-- `INTELLIGENCE` (0.0 = dumb/simple, 1.0 = sharp/insightful)
-- `SPEECH_RATE` (pyttsx3 speed; ~140–220 is normal)
-- `WAKE_WORDS_ENABLED` (avoid it answering background noise)
-- `WAKE_WORDS_EN / WAKE_WORDS_FR`
+---
 
-**Safety note:** “mean / banter” is kept *playful* by a guardrail so it doesn’t turn into real abuse.
+## Configuration
+
+Edit `config.py` to customize:
+
+### Speed Settings (for faster responses)
+```python
+OLLAMA_MODEL = "qwen2.5:3b"   # Fast CPU-friendly model
+HISTORY_TURNS = 5              # Less context = faster
+MAX_TOKENS = 120               # Shorter responses
+```
+
+### Personality (0.0 to 1.0)
+```python
+NICENESS = 0.55      # 0=cold, 1=very kind
+FORMALITY = 0.30     # 0=slangy, 1=formal
+BANTER = 0.45        # 0=none, 1=very playful
+INTELLIGENCE = 0.85  # 0=simple, 1=sharp
+```
+
+### Hardware
+```python
+CAMERA_INDEX = 0           # Change if wrong camera
+MIC_DEVICE_INDEX = None    # None=default, or set number
+SPEECH_RATE = 190          # TTS speed (140-220 typical)
+```
 
 ---
 
 ## Troubleshooting
 
-### “No module named …”
-You didn’t activate the venv. Use:
+### "No module named..."
 ```powershell
-./.venv/Scripts/activate
+.\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### “Could not open microphone / camera”
-- Close other apps using the mic/cam (Discord, Teams, etc.)
-- In Windows Settings → Privacy → allow mic/cam access for desktop apps.
+### Wrong microphone
+1. Run this to list devices:
+   ```powershell
+   .\.venv\Scripts\python.exe -c "import sounddevice; print(sounddevice.query_devices())"
+   ```
+2. Set `MIC_DEVICE_INDEX` in config.py to the correct number
 
-### It’s slow / laggy
-- Use a smaller Ollama model (`phi3:mini`)
-- Reduce `MAX_TOKENS` and `HISTORY_TURNS` in `config.py`
-- Set `VISION_PROCESS_EVERY_N_FRAMES` higher
+### Wrong camera
+1. Change `CAMERA_INDEX` in config.py (try 0, 1, 2...)
+
+### Slow responses (20+ seconds)
+- Use a smaller model: `ollama pull phi3:mini`
+- Reduce `HISTORY_TURNS` to 3-4
+- Reduce `MAX_TOKENS` to 80-100
+
+### Can't hear TTS / Wrong voice
+1. Run this to list voices:
+   ```powershell
+   .\.venv\Scripts\python.exe assistant\tts.py
+   ```
+2. Update `VOICE_NAME_HINT_EN` / `VOICE_NAME_HINT_FR` in config.py
+
+### Ollama not responding
+```powershell
+# Check if running
+curl http://localhost:11434
+
+# If not, start it
+ollama serve
+
+# Check available models
+ollama list
+```
 
 ---
 
-## Files
+## Project Structure
 
-- `main.py` : app entry point
-- `assistant/vision.py` : face detection + presence state machine
-- `assistant/audio.py` : mic streaming + VAD + bilingual ASR
-- `assistant/llm_ollama.py` : local chat via Ollama
-- `assistant/tts.py` : speaking + voice selection
-- `config.py` : all tuning knobs
+```
+local-voice-ai/
+├── main.py                 # Entry point
+├── config.py               # All settings
+├── requirements.txt        # Python dependencies
+├── assistant/
+│   ├── audio.py           # VAD + Speech recognition
+│   ├── llm_ollama.py      # Ollama client
+│   ├── persona.py         # System prompt builder
+│   ├── tts.py             # Text-to-speech
+│   └── vision.py          # Face detection
+├── phrases/
+│   ├── greetings_en.txt   # English greetings
+│   ├── greetings_fr.txt   # French greetings
+│   ├── goodbyes_en.txt    # English goodbyes
+│   └── goodbyes_fr.txt    # French goodbyes
+├── models/                 # Vosk models (auto-downloaded)
+└── scripts/
+    ├── setup_windows.ps1   # One-time setup
+    ├── download_models.ps1 # Model downloader
+    └── run.bat             # Launch script
+```
+
+---
+
+## Model Comparison
+
+| Model | Size | CPU Speed | Quality |
+|-------|------|-----------|---------|
+| `phi3:mini` | ~2.3 GB | ~2-5s | Basic |
+| `qwen2.5:3b` | ~2 GB | ~3-6s | Good |
+| `qwen2.5:7b` | ~4.4 GB | ~8-15s | Better |
+| `llama3.1:8b` | ~4.6 GB | ~20-60s | Best |
+
+**Recommendation:** Use `qwen2.5:3b` for the best speed/quality balance on CPU.
+
+---
+
+## License
+
+MIT License - Use freely, modify as needed.
