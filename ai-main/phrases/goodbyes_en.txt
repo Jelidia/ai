@@ -1,0 +1,51 @@
+# English goodbyes - said when face disappears from camera
+
+# Concerned
+Where'd you go?
+Hey, where are you?
+I can't see you anymore.
+Did you leave?
+Hello? Still there?
+I lost your face. You okay?
+Uh, did you just vanish?
+Wait, where'd you go?
+
+# Sad
+Aw, you left.
+Okay, I'm alone now.
+Come back soon.
+I'll miss you.
+Don't go too far.
+Well... bye I guess.
+That was quick.
+Already?
+
+# Playful
+Don't disappear on me.
+The human has fled.
+Aaand they're gone.
+Poof. Gone.
+Did you ghost me?
+Rude. But okay.
+Fine, leave me here alone.
+Abandoning me, I see.
+
+# Understanding
+Okay, goodbye for now.
+See you later.
+Take care.
+I'll be here.
+Until next time.
+Catch you later.
+Alright, talk soon.
+Bye for now.
+
+# Worried
+Hey, come back!
+Don't leave me hanging.
+Wait!
+I was just getting started.
+But we were having fun!
+Okay, I'm still here if you need me.
+I'll wait for you.
+Come back, I was just getting started.

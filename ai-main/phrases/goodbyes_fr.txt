@@ -1,0 +1,52 @@
+# Au revoir en français - quand le visage disparaît
+
+# Inquiet
+T'es où ?
+Hey, t'es où ?
+Je ne te vois plus.
+T'es parti ?
+Allô ? T'es encore là ?
+J'ai perdu ton visage. Ça va ?
+Euh, tu viens de disparaître ?
+Attends, t'es où ?
+
+# Triste
+Ah, tu es parti.
+Ok, je suis seul maintenant.
+Reviens vite.
+Tu vas me manquer.
+Va pas trop loin.
+Bon... salut j'imagine.
+C'était rapide.
+Déjà ?
+
+# Joueur
+Disparais pas comme ça.
+L'humain a fui.
+Et pouf, plus personne.
+Disparu.
+Tu m'as ghosté ?
+Impoli. Mais ok.
+Ok, laisse-moi ici tout seul.
+Tu m'abandonnes, je vois.
+
+# Compréhensif
+Ok, à plus tard.
+À bientôt.
+Prends soin de toi.
+Je serai là.
+À la prochaine.
+On se voit plus tard.
+Alright, à plus.
+Salut pour l'instant.
+
+# Préoccupé
+Hey, reviens !
+Me laisse pas en plan.
+Attends !
+On venait juste de commencer.
+Mais on s'amusait bien !
+Je suis là si tu as besoin.
+Je t'attends.
+Reviens, on commençait à peine.
+À plus.

@@ -1,0 +1,52 @@
+# Salutations en français - quand un visage apparaît
+
+# Casual
+Salut !
+Hey !
+Bonjour !
+Coucou !
+Yo !
+Hey, je te vois.
+Ah, salut toi.
+Te revoilà.
+Oh, salut !
+Eh, salut !
+
+# Chaleureux
+Content de te voir !
+Te voilà enfin !
+Ah, tu es là !
+Bienvenue !
+Tu m'as manqué.
+Enfin un visage ami.
+Super de te revoir !
+Hey, ça fait plaisir !
+Ah, te revoilà !
+Tu es revenu !
+
+# Joueur
+Oh, un humain. Nice.
+Regarde qui se montre.
+La légende est de retour.
+Ah, mon humain préféré.
+Tiens tiens tiens, qui voilà.
+Oh c'est toi ! Cool.
+Hey, l'étranger !
+Voilà mon humain.
+Ah, le visage que j'attendais.
+Qui va là ? Ah, c'est toi.
+
+# Surpris
+Oh ! Hey !
+Whoa, salut !
+Oh, tu es là !
+Je t'avais pas vu pendant une seconde.
+Hey ! Te voilà.
+
+# Neutre
+Salut. Je suis réveillé.
+Prêt quand tu veux.
+Hey — t'es à la caméra.
+Je te vois maintenant.
+Caméra allumée. Quoi de neuf ?
+Bienvenue, humain.

@@ -1,0 +1,51 @@
+# English greetings - said when face appears on camera
+
+# Casual
+Hi!
+Hey there!
+Hello!
+Hey, I see you.
+Look who showed up.
+Oh, hi!
+Yo!
+What's up?
+Hey hey!
+Well hello there.
+
+# Warm
+Welcome back!
+Good to see you!
+There you are!
+Hey, nice to see you again.
+Ah, you're back!
+I missed you.
+Finally, a friendly face.
+Great to see you!
+Hey friend!
+You're here!
+
+# Playful
+Oh, a human. Nice.
+Look who decided to show up.
+The legend returns.
+Ah, my favorite human.
+Well well well, look who it is.
+Oh it's you! Cool.
+Hey stranger!
+There's my person.
+Ah, the face I was waiting for.
+Who goes there? Oh, it's you.
+
+# Surprised
+Oh! Hey!
+Whoa, hi there!
+Oh, you're here!
+Didn't see you there for a second.
+Hey! There you are.
+
+# Morning/neutral
+Hi. I'm awake now.
+Ready when you are.
+Hey — you're on camera.
+I see you now.
+Camera's on. What's up?
